@@ -97,13 +97,7 @@ def transform(acquisition, counts):
         acquisition['{}_year'.format(date)] = pd.to_numeric(acquisition[col].str.split('/').str.get(1))
         
     # These columns will make things difficult, and we don't really need them
-    acquisition = acquisition.drop(['origination_date'
-                                    ,'first_payment_date'
-                                    ,'co_borrower_credit_score'
-                                    ,'mortgage_insurance_type'
-                                    ,'insurance_percentage'
-                                    ,'relocation_mortgage_indicator'
-                                    ,'product_type'],1)
+    acquisition = acquisition.drop(st.DROP_COLS,1)
 
     # Fill missing values, and retain only records which have been in the data
     # set for a predefined number of quarters. For most fields, we flag nulls

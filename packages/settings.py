@@ -83,6 +83,15 @@ SELECT = {
     ]
 }
 TARGET = 'foreclosure_status'
+DROP_COLS = [
+    'origination_date'
+    ,'first_payment_date'
+    ,'co_borrower_credit_score'
+    ,'mortgage_insurance_type'
+    ,'insurance_percentage'
+    ,'relocation_mortgage_indicator'
+    ,'product_type'        
+]
 # TODO: reduce the predictor count
 NON_PRED = [TARGET, "id"]
 FOLDS = 3
