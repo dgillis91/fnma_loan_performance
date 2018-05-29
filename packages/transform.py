@@ -10,6 +10,7 @@ Created on Sun Apr 29 14:31:40 2018
 
 import pandas as pd, numpy as np
 import os
+import logging
 import settings as st
 
 def count_performance():

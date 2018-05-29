@@ -1,0 +1,10 @@
+2018-05-07 19:11:28,523:root:DEBUG:<ipython-input-16-a7d1832c8a12>:1:a test message
+2018-05-07 19:12:50,187:extract:DEBUG:<ipython-input-18-0a99fbd93c2c>:1:another test
+2018-05-07 19:12:50,187:extract:DEBUG:<ipython-input-18-0a99fbd93c2c>:1:another test
+2018-05-07 19:13:14,042:extract:WARNING:<ipython-input-19-d2db1b423d13>:1:hello
+2018-05-07 19:13:14,042:extract:WARNING:<ipython-input-19-d2db1b423d13>:1:hello
+2018-05-07 19:15:44,942:extract:DEBUG:<ipython-input-22-25966ca2030a>:1:do
+2018-05-07 19:15:44,942:extract:DEBUG:<ipython-input-22-25966ca2030a>:1:do
+2018-05-07 19:17:59,171:root:DEBUG:<ipython-input-4-dc1695c39123>:1:A test from the root logger
+2018-05-07 19:18:45,370:main:DEBUG:<ipython-input-6-0eb91a24d4d6>:1:A test from the main logger
+2018-05-07 19:18:45,370:main:DEBUG:<ipython-input-6-0eb91a24d4d6>:1:A test from the main logger
