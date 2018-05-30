@@ -22,4 +22,16 @@ if __name__ == '__main__':
     c = ConfigFile(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\app.conf'
                    ,load=True)
 
+    d = ConfigFile(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\test_app.conf')
+
+    d.my_test_conf.testing = 'this is a test'
+    d.my_test_conf.testing_again = 'this is also a test'
+    d.my_test_list = [1, 2, 3, 4]
+
+    d.write_back()
+
+    e = ConfigFile(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\test_app.conf', load=True)
+
+    print(e)
+
     print(c)

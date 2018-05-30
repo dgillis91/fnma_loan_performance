@@ -1,9 +1,10 @@
 {
   "ExpandedNodes": [
     "",
+    "\\config",
     "\\packages",
     "\\packages\\janitor"
   ],
-  "SelectedNode": "\\packages\\janitor\\file.py",
+  "SelectedNode": "\\packages\\janitor\\config.py",
   "PreviewInSolutionExplorer": false
 }

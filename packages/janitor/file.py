@@ -8,7 +8,7 @@ import pkg_resources
 import shutil
 import pandas 
 
-from .plugin import PluginManager
+from plugin import PluginManager
 
 '''
 @ToDo:  * Ptoentially implement iterators, if read doesn't return an iterable. Need to test this.

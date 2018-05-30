@@ -9,8 +9,9 @@ import os
 import ast
 import yaml
 import re
+import warnings
 
-from .file import File, AccessMode
+from file import File, AccessMode
 
 class ConfigNode(object):
     '''
@@ -32,8 +33,8 @@ class ConfigNode(object):
         '''
         @Description:   Initialize a ConfigNode object.
         @Created:       05.01.2018
-        @Params:        * data - Configuration parameters. Stored as a dictionary.
-                        * defaults - Default Parameters. Stored as a dictionary.
+        @Params:        * data - Configuration parameters. 
+                        * defaults - Default Parameters. Any matching configurations in `data` will be overwritten in defaults.
                         * root - Root node for the current ConfigNode object. Stored as a ConfigNode.
                         * path - The path to the current ConfigNode in the data dictionary. String.
         @Throws:        None
@@ -258,11 +259,27 @@ class ConfigNode(object):
             return self._data
 
     def update(self, data={}, options={}):
+        if options != {}:
+            warnings.warn('The `options` parameter will be deprecated in a future release. Use the `data` parameter with a full dict, instead'
+                          ,DeprecationWarning)
         for key in options:
             self[key] = options[key]
+
         if isinstance(data, ConfigNode):
             data = data._get_value()
         update_dict(self._get_value(), data)
+
+    def reset(self):
+        '''
+        @Description:   Roll settings back to defaults.
+        '''
+        self._data = copy.deepcopy(self._defaults)
+
+    def to_dict(self):
+        '''
+        @Description:   Cast the ConfigNode to a dictionary.
+        '''
+        return self._get_value()
         
 def update_dict(target, source):
     for k, v in source.items():
@@ -343,9 +360,8 @@ class ConfigFile(Config, File):
         return self
 
     def write_back(self, mode=AccessMode.WRITE):
-        with open(self._path, mode=mode) as y_file:
-            yaml.safe_dump(self._data, y_file)
-
+        with open(self.path, mode=mode) as y_file:
+            yaml.dump(self._data, y_file, default_flow_style=False)
 
 class ConfigApplicator(object):
     def __init__(self, config):
@@ -380,17 +396,36 @@ class ConfigApplicator(object):
         return obj
 
 if __name__ == '__main__':
-    d = {'thing': {
+    data = {'thing': {
             'another': {
                 'some_leaf': 5,
                 'one_more': {
-                    'other_leaf': 'x'
+                    'other_leaf': 'x',
+                    'other' : 'y'
                 }
             }
         }
     }
-     
-    c = ConfigNode(data=d)
-    a = c._child('thing')._child('another')
-    a._resolve_path()
-    print()
+    
+    default = {
+        'port' : 42,
+        'listener' : 'java',
+        'thin' : 'mint',
+        'thing' : {
+            'another': {
+                'some_leaf' : 6,
+                    'one_more': {
+                        'other_leaf': 'x',
+                        'other' : 'y'
+                    }
+            }
+        }
+    }
+
+    c = ConfigNode(data=data, defaults=default)
+    print(c.to_dict())
+    #print(c)
+    #print(c.items())
+    #print(c.keys())
+    #c.update(data={'port' : 52, 'thing' : 'cat'})
+    #print(c)
