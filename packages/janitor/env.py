@@ -9,6 +9,7 @@ import logging.config
 from .file import Directory
 from .plugin import PluginManager
 from .config import ConfigNode, Config, ConfigEnv, ConfigApplicator
+# TODO: Update to a shared state model
 
 class Environment(object):
     def __init__(self, setup_logging=True, *args, **kwargs):
@@ -48,6 +49,7 @@ class Environment(object):
         named_config = None
         found_config = None
 
+        
         if 'config' in children:
             if type(children['config']) == str:
                 children['config'] = ConfigFile(children['config'])

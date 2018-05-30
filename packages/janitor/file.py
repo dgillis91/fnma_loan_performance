@@ -43,7 +43,7 @@ class AccessMode(object):
     # Open the file in binary for appending and reading. Same additional behaviors as APPEND_PLUS.
     APPEND_BINARY_PLUS = 'ab+'
 
-class File(object):
+class File(object): 
     ''' --- Magic Methods --- '''
     def __init__(self, path=None, create=False, cleanup=False, parent=None):
         '''
@@ -136,7 +136,10 @@ class File(object):
     def read(self):
         '''
         @Description:   Read data from a the file object. No buffering, the whole file is returned.
+        @Throws:        FileNotFoundError - if the file does not exist. Since the 
         '''
+        if not self.exists:
+            raise FileNotFoundError('File not found: {}'.format(self.path))
         with open(self.path) as r:
             d = r.read()
         return d
@@ -146,7 +149,10 @@ class File(object):
         @Description:   Write data from the file object
         @Params:        data - to write
                         mode - mode to write, default is WRITE. Overwrites the file, and creates it if it doesn't exist.
+        @Throws:        None - we want to give the user the ability to write to the file, even if it doesn't exist.
         '''
+        if not self.exists:
+            raise FileNotFoundError('File does not exist - path: {}'.format(self.path))
         with open(self.path, mode) as w:
             w.write(data)
 
@@ -165,17 +171,18 @@ class LogFile(File):
     def __init__(self, path=None, logger=None, loggers=[], formatter={}, format=None, *args, **kwargs):
         '''
         @Description:
-        @Params:        * path - 
-                        * logger - 
-                        * loggers - 
-                        * formatter - 
-                        * format - 
+        @Params:        * path - Path to the configuration file. 
+                        * logger - Individual logger name. Shouldn't pass params for both logger and loggers.
+                        * loggers - Multiple loggers to be handled by this file. Expects dict.
+                        * formatter - Name of a logging.Formatter object in the environment, or a dict with logging settings.
+                        * format - A string format representation.
         '''
         super(LogFile, self).__init__(path=path, *args, **kwargs)
         self._create = True
         self._cleanup = True
         self._formatter = formatter
         self._format = format
+        self.__configured = False
 
         # Set the loggers. If the caller passes a single logger, we make that a list. Otherwise, we use the loggers.
         if logger:
@@ -183,11 +190,13 @@ class LogFile(File):
         else:
             self._loggers = loggers
 
-    def prepare(self):
-        self.configure()
+    def prepare(self, reload=False):
+        if not self.__configured or reload:
+            self.configure()
+            self.__configured = True
 
     def configure(self):
-        handler = logging.handlers(self.path, delay=True)
+        handler = logging.FileHandler(self.path, delay=True)
 
         if self._format:
             handler.setFormatter(logging.Formatter(self._format))
@@ -199,14 +208,14 @@ class LogFile(File):
         # name of a formatter as a string, so we parse that out from the configuration.
         if type(self._formatter) == str:
             if self._env and self._env.config.logging.dict_config.formatters[self._formatter]:
-                d = self._env.config.logging.dict_config.formatters[self._formatters].todict()
+                d = self._env.config.logging.dict_config.formatters[self._formatter].todict()
                 handler.setFormatter(logging.Formatter(**d))
         
         # Now, it's also possible that the caller passed in a dict for the format. If that is the case, we simply pass that to the logger.
-        elif type(self._format) == dict:
+        elif type(self._formatter) == dict:
             handler.setFormatter(logging.Formatter(**self._formatter))
 
-        # Now we have to add the handler to all of the loggers that the caller passed. 
+        # Now we have to add the handler to all of the loggers that the caller passed. If the loggers are not set, we will create a default.
         if len(self._loggers):
             for name in self._loggers:
                 logging.getLogger(name).addHandler(handler)
@@ -298,90 +307,92 @@ class Directory(object):
         for key in self._children:
             self._children.apply_config(applicator)
 
-        @property
-        def path(self):
-            p = ''
-            if self._parent and self._parent.path:
-                p = os.path.join(p, self._parent.path)
-            if self._base:
-                p = os.path.join(p, self._base)
-            if self._path:
-                p = os.path.join(p, self._path)
+    @property
+    def path(self):
+        p = ''
+        if self._parent and self._parent.path:
+            p = os.path.join(p, self._parent.path)
+        if self._base:
+            p = os.path.join(p, self._base)
+        if self._path:
+            p = os.path.join(p, self._path)
 
-            return p
+        return p
 
-        def create(self):
-            if not self.exists and self._create:
-                os.mkdir(self.path)
+    def create(self):
+        if not self.exists:
+            os.mkdir(self.path)
 
-        def remove(self, recursive=True, ignore_error=True):
-            try:
-                if recursive or self._cleanup == Directory.CLEANUP_MODE_RECURSIVE:
-                    shutil.rmtree(self.path)
-                else:
-                    os.rmdir(self.path)
-            except Exception as e:
-                if not ignore_error:
-                    raise e
+    def remove(self, recursive=True, ignore_error=True):
+        try:
+            if recursive or self._cleanup == Directory.CLEANUP_MODE_RECURSIVE:
+                shutil.rmtree(self.path)
+            else:
+                os.rmdir(self.path)
+        except Exception as e:
+            if not ignore_error:
+                raise e
 
-        def prepare(self):
-            if self._create:
-                self.create()
-            for k in self._children:
-                self._children[k]._env = self._env
-                self._children[k].prepare()
+    def prepare(self):
+        if self._create:
+            self.create()
+        for k in self._children:
+            self._children[k]._env = self._env
+            self._children[k].prepare()
 
-        def cleanup(self):
-            for k in self._children:
-                self._children[k].cleanup()
-            if self._cleanup:
-                self.remove(True)
+    def cleanup(self):
+        for k in self._children:
+            self._children[k].cleanup()
+        if self._cleanup:
+            self.remove(True)
 
-        def path_to(self, path):
-            return os.path.join(self.path, str(path))
+    def path_to(self, path):
+        return os.path.join(self.path, str(path))
 
-        @property 
-        def exists(self):
-            return os.path.exists(self.path)
+    @property 
+    def exists(self):
+        return os.path.exists(self.path)
 
-        def list(self):
-            return [File(f, parent=self) for f in os.listdir(self.path)]
+    def list(self):
+        return [File(f, parent=self) for f in os.listdir(self.path)]
 
-        def write(self, filename, data, mode=AccessMode.WRITE):
-            with open(self.path_to(str(filename)), mode) as f:
-                f.write(data)
+    def write(self, filename, data, mode=AccessMode.WRITE):
+        with open(self.path_to(str(filename)), mode) as f:
+            f.write(data)
 
-        def read(self, filename):
-            with open(self.path_to(str(filename))) as f:
-                d = f.read()
-            return d
+    def read(self, filename):
+        with open(self.path_to(str(filename))) as f:
+            d = f.read()
+        return d
 
-        def add(self, *args, **kwargs):
-            for key in kwargs:
-                if isinstance(kwargs[key], str):
-                    self._children[key] = File(kwargs[key])
-                else:
-                    self._children[key] = kwargs[key]
-                self._children[key]._parent = self
-                self._children[key]._env = self._env
+    def add(self, *args, **kwargs):
+        for key in kwargs:
+            if isinstance(kwargs[key], str):
+                self._children[key] = File(kwargs[key])
+            else:
+                self._children[key] = kwargs[key]
+            self._children[key]._parent = self
+            self._children[key]._env = self._env
 
-            added = []
-            for arg in args:
-                if isinstance(arg, File):
-                    self._children[arg.name] = arg
-                    self._children[arg.name]._parent = self
-                    self._children[arg.name]._env = self._env
-                elif isinstance(arg, str):
-                    f = File(arg)
-                    added.append(f)
-                    self._children[arg] = f
-                    self._children[arg]._parent = self
-                    self._children[arg]._env = self._env
+        added = []
+        for arg in args:
+            if isinstance(arg, File):
+                self._children[arg.name] = arg
+                self._children[arg.name]._parent = self
+                self._children[arg.name]._env = self._env
+            elif isinstance(arg, str):
+                f = File(arg)
+                added.append(f)
+                self._children[arg] = f
+                self._children[arg]._parent = self
+                self._children[arg]._env = self._env
+            else:
+                raise TypeError(type(arg))
 
-            if len(added) == 1:
-                return added[0]
-            if len(args) == 1:
-                return args[0]
+        if len(added) == 1:
+            return added[0]
+        if len(args) == 1:
+            return args[0]
 
 class PluginDirectory(Directory):
     def prepare(self):
@@ -407,3 +418,29 @@ class PackageDirectory(Directory):
             self._base = pkg_resources.resource_filename(package, '')
         else:
             raise Exception('No package found')
+
+if __name__ == '__main__':
+    #with File(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\logging.conf'
+    #          ,create=True, cleanup=True) as f:
+    #    print(os.path.exists('D:\\School\\Machine Learning\\fnma_loan_performance\\config\\logging.conf'))
+    #    print(f.name)
+    #print(os.path.exists('D:\\School\\Machine Learning\\fnma_loan_performance\\config\\logging.conf'))
+
+    #import logging
+
+    #lf = LogFile(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\app.log'
+    #             ,formatter={'fmt' : '%(levelname)s:%(module)s:%(funcName)s:%(asctime)s - %(message)s', 'datefmt' : '%m/%d/%Y %I:%M:%S %p'}, create=True, cleanup=False)
+    #with lf as f:
+    #    f.remove()
+    #    f.prepare()
+
+    #logging.warn('log message')
+    #logging.warn('second log message')
+
+    #yf = YAMLFile(path='D:\\School\\Machine Learning\\fnma_loan_performance\\config\\test_app.conf')
+    #c = yf.content
+    #print(c)
+     
+    pf = PackageFile(path='readme.txt', package='janitor')
+    #print(pf.content)
+    print(os.getcwd())

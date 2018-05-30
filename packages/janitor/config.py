@@ -163,6 +163,9 @@ class ConfigNode(object):
     
     def __bool__(self):
         return self._get_value() != None
+
+    def __len__(self):
+        return len(self.to_dict())
     
     def items(self):
         '''
@@ -299,7 +302,8 @@ class ConfigEnv(ConfigNode):
     '''
     @Description:   Object used to configure from the system's environment variables.
     '''
-    def __init__(self, prefix='janitor', *ars, **kwargs):
+    DEFAULT_PREFIX = 'JANITOR'
+    def __init__(self, prefix=DEFAULT_PREFIX, *args, **kwargs):
         '''
         @Description:   Inst. a ConfigEnv object. 
         @Params:        * prefix - It is assumed that any environment variables set will be prefixed with
@@ -307,8 +311,11 @@ class ConfigEnv(ConfigNode):
         '''
         super(ConfigEnv, self).__init__(*args, **kwargs)
 
+        prefix = prefix.upper()
         options = {}
         # Parse out variable keys that start with our prefix, or __SC_.
+        # TODO: Remove __SC_, add a write_back method, and enhance the update method to parse the dot notation 
+        #       into nested dicts.
         for key in [v for v in os.environ if v.startswith('__SC_') or v.startswith(prefix + '_')]:
             # Try to type cast the variable
             try:
@@ -317,7 +324,7 @@ class ConfigEnv(ConfigNode):
             except:
                 val = os.environ[key]
             # Add the values to the options dict, striping out the prefix.
-            options[key.replace('__SC_', '').replace(prefix + '_').lower()] = val
+            options[key.replace('__SC_', '').replace(prefix + '_', '').lower()] = val
 
         self.update(options=options)
 
@@ -325,29 +332,60 @@ class ConfigFile(Config, File):
     '''
     @Description:   A configuration object using a file for reading.
     '''
-    def __init__(self, path=None, defaults=None, load=False, apply_env=False, env_prefix='janitor', *args, **kwargs):
+    # TODO: Update the method to take a Config object, a file path, or a dict for defaults.
+    def __init__(self, path=None, defaults=None, load=False, apply_env=False, env_prefix=ConfigEnv.DEFAULT_PREFIX, *args, **kwargs):
+        '''
+        @Description:   Child of the Config object, allowing a caller to fetch configuration settings from a file. In addition, this object allows developers to create and modify
+					    config files. The supported configuration structure is YAML, though additional formats may be added in future releases. If they are, they will be created
+					    as additional objects, e.g., ConfigYAML, ConfigJSON, ConfigINI. For more details on YAML, see the YAML project. The ConfigFile also allows developers to 
+					    read environment variables.
+					    In a future release, the default configurations can be set via a Config, a dict, or a file. Today, the defaults MUST be set with a file.
+					    This object supports all of the same methods as Config, except for the initialization, which differs. In addition, we've implemented write_back, and load methods.
+					    The load method is only necessary to reload the configuration file, or if you choose not to load on initialization. 
+        @Parameters:    The object can be initialized with all of the parameters that exist in Config; however, they have different behaviors. In addition, a few parameters are added. These
+				        differences are highlighted, below.
+				        * path - A path to the configuration file. Note that all file paths allow user expansion. 
+				        * defaults - A path to the defaults file. 
+				        * load - Whether or not to load the file upon instantiation. It is important to note that you will need to make a call to the load method if this is set to False.
+						         The defaults and data will not load until load() is called.
+				        * apply_env - A boolean value representing whether or not the object should search the env variables for configurations.
+				        * env_prefix - The prefix used to search the environment variables.
+        @UsageExamples: See readme.
+        '''
         self._loaded = False
         self._defaults_file = defaults
         self._apply_env = apply_env
         self._env_prefix = env_prefix
+
         Config.__init__(self)
+        # We initialize the file components of our object with the path to the configuration file
         File.__init__(self, path=path, *args, **kwargs)
+        
+        # Now we will change the defaults file to a File object, if the caller passed a path
+        if self._defaults_file and type(self._defaults_file) == str:
+            self._defaults_file = File(self._defaults_file, parent=self._parent)
+
+        # Check to see if the files exist. If they do not, throw an error
+        if self._defaults_file and not self._defaults_file.exists:
+            raise FileNotFoundError('Invalid path for defaults file: {}'.format(self._defaults_file.path))
+        if not self.exists:
+            raise FileNotFoundError('Invalid path for configuration file: {}'.format(self.path))
 
         if load:
             self.load()
 
     def load(self, reload=False):
+        # Only perform the load if the object hasn't already loaded the configuration file, or a reload is requested.
         if reload or not self._loaded:
-            if self._defaults_file and type(self._defaults_file) == str:
-                self._defaults_file = File(self._defaults_file, parent=self._parent)
             defaults = {}
+            # Parse the defaults into a dict
             if self._defaults_file:
                 defaults = yaml.safe_load(self._defaults_file.read().replace('\t','    '))
 
             data = {}
             if self.exists:
                 data = yaml.safe_load(self.read().replace('\t','    '))
-
+            
             self._defaults = defaults
             self._data = copy.deepcopy(self._defaults)
             self.update(data=data)
@@ -360,32 +398,57 @@ class ConfigFile(Config, File):
         return self
 
     def write_back(self, mode=AccessMode.WRITE):
+        if not len(self):
+            raise RuntimeError('Configurations not loaded')
         with open(self.path, mode=mode) as y_file:
             yaml.dump(self._data, y_file, default_flow_style=False)
 
 class ConfigApplicator(object):
+    '''
+    @Description:   Class to apply a configuration to tokens in a string.
+    '''
     def __init__(self, config):
+        '''
+        @Description:   Initialize a ConfigApplicator
+        @Params:        config - a Config object - simply needs to inherit ConfigNode, or Config.
+        '''
         self.config = config
 
     def apply(self, obj):
+        '''
+        @Description:   Delegate to ConfigApplicator.apply_to_string(obj)
+        '''
         if type(obj) == str:
-            return self.apply_to_string(obj)
+            return self.apply_to_str(obj)
 
     def apply_to_str(self, obj):
+        '''
+        @Description:   Apply configuration variables to a string. It is expected that any tokens are of the form '{config:[variable_path]}'.
+        @Params:        obj - string to apply the configuration to.
+        @Throws:        KeyError - if the configuration variable doesn't exist in config.
+        '''
+        # Tokenize the string. This parses the left side of the config group, and the right curly brace, parsing the rest out.
         toks = re.split('({config:|})', obj)
         newtoks = []
+
         try:
+            # Iterate over the tokens
             while len(toks):
                 tok = toks.pop(0)
+                # This is the left hand side of the config group.
                 if tok == '{config:':
+                    # Move on to the next token, it's the one that needs to be replaced
                     var = toks.pop(0)
+                    # Grab the value from the config object
                     val = self.config[var]
 
+                    # Raise an error if that object doesn't exist
                     if type(val) == ConfigNode and val == None:
                         raise KeyError('No such configuration variable: {}'.format(var))
 
+                    # Append the token to our list
                     newtoks.append(str(val))
-
+                    # Pop off the next element, discarding it. It's the right side curly brace.
                     toks.pop(0)
                 else:
                     newtoks.append(tok)
@@ -396,6 +459,7 @@ class ConfigApplicator(object):
         return obj
 
 if __name__ == '__main__':
+    
     data = {'thing': {
             'another': {
                 'some_leaf': 5,
@@ -421,11 +485,30 @@ if __name__ == '__main__':
             }
         }
     }
-
+    
     c = ConfigNode(data=data, defaults=default)
-    print(c.to_dict())
+    ca = ConfigApplicator(c)
+
+    txt = 'www.datainduction.com:{config:port}'
+    txt = ca.apply(txt)
+    print(txt)
+
     #print(c)
     #print(c.items())
     #print(c.keys())
     #c.update(data={'port' : 52, 'thing' : 'cat'})
     #print(c)
+
+    #os.environ['janitor_default.server'] = 'apache'
+    #os.environ['janitor_default.port'] = '8080'
+    #os.environ['janitor_backup.server'] = 'hdfs'
+
+    #ce = ConfigEnv(prefix='janitor')
+    #print(ce.default.server)
+    #print(ce.default.port)
+    #print(ce.backup.server)
+
+    #cf = configfile(path='d:\\school\\machine learning\\fnma_loan_performance\\config\\test_app.conf'
+    #                ,defaults='d:\\school\\machine learning\\fnma_loan_performance\\config\\defaults.conf'
+    #                ,load=true, apply_env=true)
+    #cf.write_back()
