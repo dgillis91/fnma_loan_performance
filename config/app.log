@@ -1,2 +1,6 @@
-WARNING:file:<module>:05/30/2018 03:13:43 PM - log message
-WARNING:file:<module>:05/30/2018 03:13:43 PM - second log message
+
+WARNING:examples:<module>:05/31/2018 12:18:32 PM - test
+WARNING:examples:<module>:05/31/2018 12:23:03 PM - test
+WARNING:examples:<module>:05/31/2018 12:23:45 PM - test
+WARNING:examples:<module>:05/31/2018 12:25:21 PM - test
+WARNING:examples:<module>:05/31/2018 12:26:19 PM - test

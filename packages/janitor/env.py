@@ -27,7 +27,7 @@ class Environment(object):
             else:
                 log = logging.getLogger()
                 log.setLevel(logging.INFO)
-                if len(list(filter(lambda h: isinstance(h, logging.StreamHandler), logging.handlers))):
+                if len(list(filter(lambda h: isinstance(h, logging.StreamHandler), log.handlers))):
                     log.addHandler(logging.StreamHandler)
 
         self.add(**kwargs)

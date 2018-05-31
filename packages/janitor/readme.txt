@@ -395,19 +395,23 @@ file:
 				... hdfs
 		JSONFile - The JSONFile object is an extension of YAMLFile, allowing the same behaviors, except it assumes the underlying data is in JSON format. Reading the contents
 				   of the file yields a dict.
-		PackageFile - So far, we have worked with files with fully qualified paths. The PackageFile object creates paths that are relative to python modules. This is 
-					  helpful in finding files that exist within our program's directories. For example, consider the following structure:
-						|--modules
-						|----janitor
-						|------env.py
-						|--config
-						|----my_conf.yaml
-						|----defaults.json
-						|--log
-						|----app.log
-					  Now we can begin to access these modules with unix like glob notation, relative to the location of a module. This minimizes the need to find fully qualified paths,
-					  helping as application directories move, but structures remain static.
-		Directory - 
+		PackageFile - So far, we have worked with files with fully qualified paths. The PackageFile object creates paths that are relative to python modules. This can help
+					  in many administrative tasks, such as searching modules, and performing installs. 
+			Example 9.0: This example is mostly arbitrary, because I can't imagine there is a readme directly in the numpy module. None the less, it shows a bit of how to 
+						 instantiate the object.
+							>>> pf = PackageFile(path='readme.txt', package='numpy')
+							>>> pf.exists == False # True
+		Directory - An object for working with directories. This directory object is capable of encapsulating files and other Directory objects, allowing you to create algorithms 
+					to traverse directory trees with relative ease, and get children of a given directory.
+			Initialization:
+				Directory objects can be nested, and can have nested children. We initialize the Directory with the following arguments:
+					* path - The path can either be a string to a directory, or a nested Directory object.
+					* base - The base Directory object in a collection.
+					* create - Whether to create the directory.
+					* cleanup - Whether to remove the directory.
+					* parent - Parent Directory object.
+				Example 10.0: We create a directory object, using user expansion.
+					>>> 
 		PluginDirectory - 
 		PackageDirectory - 
 

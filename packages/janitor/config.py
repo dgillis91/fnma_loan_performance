@@ -11,7 +11,7 @@ import yaml
 import re
 import warnings
 
-from file import File, AccessMode
+from .file import File, AccessMode
 
 class ConfigNode(object):
     '''

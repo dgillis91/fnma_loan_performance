@@ -8,11 +8,7 @@ import pkg_resources
 import shutil
 import pandas 
 
-from plugin import PluginManager
-
-'''
-@ToDo:  * Ptoentially implement iterators, if read doesn't return an iterable. Need to test this.
-'''
+from .plugin import PluginManager
 
 class AccessMode(object):
     ''' 
@@ -113,7 +109,7 @@ class File(object):
         @Description:   Return the path relative to the parent file.
         '''
         if self._parent:
-            return os.path.join(self._parent._fpath, self._fpath)
+            return os.path.join(self._parent._path, self._fpath)
         else:
             return self._fpath
 
@@ -208,7 +204,7 @@ class LogFile(File):
         # name of a formatter as a string, so we parse that out from the configuration.
         if type(self._formatter) == str:
             if self._env and self._env.config.logging.dict_config.formatters[self._formatter]:
-                d = self._env.config.logging.dict_config.formatters[self._formatter].todict()
+                d = self._env.config.logging.dict_config.formatters[self._formatter].to_dict()
                 handler.setFormatter(logging.Formatter(**d))
         
         # Now, it's also possible that the caller passed in a dict for the format. If that is the case, we simply pass that to the logger.
@@ -268,18 +264,30 @@ class Directory(object):
     CLEANUP_MODE_RECURSIVE = 1
 
     def __init__(self, path=None, base=None, create=True, cleanup=False, parent=None, **kwargs):
+        '''
+        @Description:   
+        @Params:    
+            * path - Either string representation of a directory path, or a nested directory object.
+            * base - Base of the directory tree.
+            * create - Whether to create the directory for certain methods.
+            * cleanup - Whether to remove the directory with certain operations. If set to Directory.CLEANUP_MOD_RECURSIVE, this will apply deletes to sub folders.
+            * parent - The parent directory for this object.
+        '''
         self._path = path
         self._base = base
         self._create = create
         self._cleanup = cleanup
         self._pm = PluginManager()
         self._children = {}
+        # _env is for directories embedded in an environment object.
         self._env = None
         self._parent = parent
 
+        # Allow user expansion of directory paths
         if self._path and type(self._path) == str:
             self._path = os.path.expanduser(self._path)
 
+        # Add any children directories, and files
         self.add(**kwargs)
 
     def __enter__(self):
@@ -305,15 +313,21 @@ class Directory(object):
         
         # Recursively traverse the tree
         for key in self._children:
-            self._children.apply_config(applicator)
+            # Note that if the child is a Directory, this will continue to traverse the tree
+            self._children[key].apply_config(applicator)
 
     @property
     def path(self):
         p = ''
+        # If this is a nested Directory...
         if self._parent and self._parent.path:
+            # Add the parent's path
             p = os.path.join(p, self._parent.path)
+        # If there is a root node...
         if self._base:
+            # Add it to the path
             p = os.path.join(p, self._base)
+        # Add the path of the self Directory
         if self._path:
             p = os.path.join(p, self._path)
 
@@ -324,6 +338,14 @@ class Directory(object):
             os.mkdir(self.path)
 
     def remove(self, recursive=True, ignore_error=True):
+        '''
+        @Description:   Remove a directory. For the Directory object, the _cleanup attribute is not necessarily boolean. self._cleanup == Directory.CLEANUP_MODE_RECURSIVE
+                        signifies that the delete should be performed recursively.
+        @Params:        * recursive - whether or not to traverse the tree for deletes. Default to true.
+                        * ignore_error - whether to ignore errors in the delete operation. Errors could happen for multiple reasons, including 
+                                         permissions, and directories not existing.
+        @Throws:        Exception
+        '''
         try:
             if recursive or self._cleanup == Directory.CLEANUP_MODE_RECURSIVE:
                 shutil.rmtree(self.path)
@@ -347,25 +369,49 @@ class Directory(object):
             self.remove(True)
 
     def path_to(self, path):
+        '''
+        @Description:   Return the path to a child file.  The file does not necessarily need to be in the _children struct.
+        '''
         return os.path.join(self.path, str(path))
 
     @property 
     def exists(self):
+        '''
+        @Description:   Whether the Directory exists on the file system.
+        '''
         return os.path.exists(self.path)
 
     def list(self):
+        '''
+        @Description:   Return a list of the children for the current Directory.
+        '''
         return [File(f, parent=self) for f in os.listdir(self.path)]
 
     def write(self, filename, data, mode=AccessMode.WRITE):
+        '''
+        @Description:   Write data to a file under the Directory.
+        @Params:        * filename - The name of the file to write to.
+                        * data - The data to write to the file.
+                        * mode - The file access mode. Defaults to WRITE.
+        '''
         with open(self.path_to(str(filename)), mode) as f:
             f.write(data)
 
     def read(self, filename):
+        '''
+        @Description:   Read data from a file under the current Directory object.
+        @Params:        filename - name of the file to read.
+        '''
         with open(self.path_to(str(filename))) as f:
             d = f.read()
         return d
 
     def add(self, *args, **kwargs):
+        '''
+        @Description:   Add Files and Directories to the current Directory object.
+        @Params:        * args - files, non key word
+                        * kwargs - files using key words
+        '''
         for key in kwargs:
             if isinstance(kwargs[key], str):
                 self._children[key] = File(kwargs[key])
@@ -441,6 +487,10 @@ if __name__ == '__main__':
     #c = yf.content
     #print(c)
      
-    pf = PackageFile(path='readme.txt', package='janitor')
+    #pf = PackageFile(path='readme.txt', package='janitor')
     #print(pf.content)
-    print(os.getcwd())
+    #print(os.getcwd())
+
+    d = Directory(path='~/Documents')
+    d.add(d.list())
+    
